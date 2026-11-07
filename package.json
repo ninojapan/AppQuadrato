@@ -1,0 +1,11 @@
+{
+  "name": "registro-quadrato-ufficiali",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Registro di cassa del Quadrato Ufficiali - app offline per tablet (PWA)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "serve": "node scripts/build.mjs && python3 -m http.server 8080 --directory dist"
+  }
+}
