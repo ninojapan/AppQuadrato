@@ -5,7 +5,7 @@ import {
 } from '../store.js';
 import { movimentiTessera } from '../db.js';
 import { h, icon, clear, openModal, field, confirmDialog, toast, showError, segmented, emptyState } from '../ui.js';
-import { fmtEuro, parseEuro, fmtDateTime, hashHue, debounce } from '../util.js';
+import { fmtEuro, parseEuro, fmtDateTime, debounce } from '../util.js';
 import { describeMov, movTypeBadge } from './movements.js';
 
 let redraw = null;
@@ -47,7 +47,7 @@ export function renderCards(main) {
       h('thead', null, h('tr', null,
         h('th', null, 'Grado'), h('th', null, 'Cognome'), h('th', null, 'Nome'), h('th', { class: 'num' }, 'Saldo'), h('th', { class: 'actions' }, ''))),
       h('tbody', null, list.map((t) => h('tr', { class: `st-${cardStatus(t)}` },
-        h('td', null, h('span', { class: 'grado-tag', style: { '--hue': String(hashHue(t.grado || '-')) } }, t.grado || '—')),
+        h('td', null, h('span', { class: 'grado-tag' }, t.grado || '—')),
         h('td', { class: 'strong' }, t.cognome),
         h('td', null, t.nome),
         h('td', { class: 'num' }, h('span', { class: `saldo-pill st-${cardStatus(t)}` }, fmtEuro(t.saldo))),
@@ -59,13 +59,23 @@ export function renderCards(main) {
   }
 
   async function remove(t) {
-    if (t.saldo !== 0) {
-      toast(`Saldo ${fmtEuro(t.saldo)}: azzerarlo prima di eliminare (rimborso o ricarica)`, { type: 'error', duration: 4500 });
-      return;
-    }
-    if (await confirmDialog(`Eliminare la tessera di ${cardFullName(t)}?`, { ok: 'Elimina', danger: true, detail: 'I movimenti già registrati restano nello storico.' })) {
-      try { await deleteTessera(t.id); toast('Tessera eliminata'); draw(); } catch (err) { showError(err); }
-    }
+    const tipo = t.saldo > 0 ? 'credit' : t.saldo < 0 ? 'debt' : 'zero';
+    const detail = h('div', { class: 'delete-card' },
+      h('div', { class: `delete-saldo ${tipo}` },
+        h('span', null, tipo === 'credit' ? 'CREDITO RESIDUO' : tipo === 'debt' ? 'DEBITO NON SALDATO' : 'SALDO'),
+        h('b', null, fmtEuro(t.saldo))),
+      h('p', { class: 'small' }, tipo === 'credit'
+        ? 'La tessera ha ancora del credito: se va restituito in contanti, annullare e fare prima un Rimborso.'
+        : tipo === 'debt'
+          ? 'La tessera ha un debito non ancora pagato: se va riscosso, annullare e fare prima una Ricarica.'
+          : 'Il saldo è a zero.'),
+      h('p', { class: 'small muted' }, 'I movimenti già registrati restano nello storico.'));
+    const ok = await confirmDialog(`Eliminare la tessera di ${cardFullName(t)}?`, {
+      title: 'Elimina tessera', ok: tipo === 'zero' ? 'Elimina' : `Elimina con ${tipo === 'credit' ? 'credito' : 'debito'} ${fmtEuro(t.saldo)}`,
+      danger: true, detail,
+    });
+    if (!ok) return;
+    try { await deleteTessera(t.id); toast('Tessera eliminata'); draw(); } catch (err) { showError(err); }
   }
 
   redraw = draw;

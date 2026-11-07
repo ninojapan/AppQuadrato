@@ -1,7 +1,7 @@
 // Home: tutte le tessere, disposte in modo da stare tutte sullo schermo.
-import { state, sortTessere, cardStatus, cardLabel, setSettings, isAdmin } from '../store.js';
-import { h, icon, clear, segmented, emptyState } from '../ui.js';
-import { fmtEuro, hashHue, debounce } from '../util.js';
+import { state, sortTessere, cardStatus, cardLabel, isAdmin } from '../store.js';
+import { h, icon, clear, emptyState } from '../ui.js';
+import { fmtEuro, debounce } from '../util.js';
 import { openOrder } from './order.js';
 import { navigate } from '../app.js';
 import { openCardForm } from './cards.js';
@@ -19,10 +19,6 @@ export function renderHome(main) {
 
   const toolbar = h('div', { class: 'toolbar home-toolbar' },
     h('div', { class: 'search' }, icon('search', 20), search, clearBtn),
-    segmented([
-      { value: 'alpha', label: 'A–Z' },
-      { value: 'grado', label: 'Grado' },
-    ], state.settings.sortMode || 'alpha', (v) => { state.settings.sortMode = v; setSettings({ sortMode: v }); draw(); }),
     h('div', { class: 'legend' },
       h('span', { class: 'lg ok' }, 'Credito'),
       h('span', { class: 'lg low' }, 'Basso'),
@@ -63,7 +59,6 @@ export function renderHome(main) {
       const name = `${t.cognome}${t.nome ? ` ${t.nome[0]}.` : ''}`;
       frag.append(h('button', {
         class: `tile st-${st}`,
-        style: { '--hue': String(hashHue(t.grado || '-')) },
         onclick: () => openOrder(t.id, draw),
       },
       h('span', { class: 'tile-grado' }, t.grado || ' '),

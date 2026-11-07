@@ -18,8 +18,8 @@ const VIEWS = {
   home: { label: 'Cassa', icon: 'cart', render: renderHome },
   tessere: { label: 'Tessere', icon: 'card', render: renderCards, admin: true },
   prodotti: { label: 'Prodotti', icon: 'box', render: renderProducts, admin: true },
-  movimenti: { label: 'Movimenti', icon: 'list', render: renderMovements, admin: true },
-  statistiche: { label: 'Statistiche', icon: 'chart', render: renderStats, admin: true },
+  movimenti: { label: 'Movimenti', icon: 'list', render: renderMovements },
+  statistiche: { label: 'Statistiche', icon: 'chart', render: renderStats },
   impostazioni: { label: 'Impostazioni', icon: 'settings', render: renderSettings, admin: true },
 };
 
@@ -75,10 +75,11 @@ function buildShell() {
           icon('key', 18), h('span', { class: 'hide-sm' }, 'Admin')),
       h('button', { class: 'icon-btn', title: 'Blocca', 'aria-label': 'Blocca', onclick: () => lockApp() }, icon('lock'))));
 
-  const nav = admin ? h('nav', { class: 'tabbar' },
-    Object.entries(VIEWS).map(([key, v]) => h('button', {
+  // L'operatore vede Cassa, Movimenti e Statistiche; l'amministratore tutte le sezioni.
+  const nav = h('nav', { class: 'tabbar' },
+    Object.entries(VIEWS).filter(([, v]) => admin || !v.admin).map(([key, v]) => h('button', {
       class: `tab ${key === current ? 'active' : ''}`, onclick: () => navigate(key),
-    }, icon(v.icon, 22), h('span', null, v.label)))) : null;
+    }, icon(v.icon, 22), h('span', null, v.label))));
 
   return h('div', { class: `shell ${admin ? 'is-admin' : 'is-oper'}` }, header, h('main', { class: 'main' }), nav);
 }

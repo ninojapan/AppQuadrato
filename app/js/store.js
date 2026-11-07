@@ -16,12 +16,12 @@ const DEFAULTS = {
   lowBalance: 200,    // sotto questa soglia il saldo è evidenziato
   showBalance: true,
   adminTimeout: 5,    // minuti di inattività prima di tornare in modalità operatore
-  sortMode: 'alpha',
+  operEditHours: 24, // per quante ore l'operatore può modificare/annullare un consumo
   logo: null,
   lastBackup: null,
 };
 
-// Gradi (Marina Militare) suggeriti nel modulo e usati per l'ordinamento "per grado".
+// Gradi (Marina Militare) suggeriti nel modulo di registrazione tessera.
 export const GRADI = [
   'AMM.', 'AMM. SQ.', 'AMM. DIV.', 'C.A.', 'C.V.', 'C.F.', 'C.C.', 'T.V.', 'S.T.V.', 'G.M.', 'ASP. G.M.',
   '1° LGT.', 'LGT.', '1° M.LLO', 'C° 1ª CL.', 'C° 2ª CL.', 'C° 3ª CL.', '2° C° SC.', '2° C°',
@@ -136,16 +136,9 @@ export function cardStatus(t) {
   return 'ok';
 }
 
-export function gradoRank(g) {
-  const i = GRADI.indexOf(normText(g));
-  return i === -1 ? 900 : i;
-}
-
-export function sortTessere(list, mode = state.settings.sortMode) {
-  const byName = (a, b) => a.cognome.localeCompare(b.cognome, 'it') || a.nome.localeCompare(b.nome, 'it');
-  return [...list].sort(mode === 'grado'
-    ? (a, b) => gradoRank(a.grado) - gradoRank(b.grado) || a.grado.localeCompare(b.grado, 'it') || byName(a, b)
-    : byName);
+/** Ordine alfabetico per cognome, poi nome. */
+export function sortTessere(list) {
+  return [...list].sort((a, b) => a.cognome.localeCompare(b.cognome, 'it') || a.nome.localeCompare(b.nome, 'it'));
 }
 
 export const findTessera = (id) => state.tessere.find((t) => t.id === id);
@@ -193,12 +186,21 @@ export async function saveTessera({ id, grado, cognome, nome, creditoIniziale = 
   return t;
 }
 
+/** Elimina la tessera. Se il saldo non è zero resta traccia nei movimenti ("Chiusura tessera"). */
 export async function deleteTessera(id) {
   requireAdmin();
   const t = findTessera(id);
   if (!t) fail('Tessera non trovata');
-  if (t.saldo !== 0) fail('Per eliminare la tessera il saldo deve essere 0 (fare prima un rimborso o una ricarica)');
-  await db.tx(['tessere'], (st) => { st.tessere.delete(id); });
+  await db.tx(['tessere', 'movimenti'], (st) => {
+    st.tessere.delete(id);
+    if (t.saldo !== 0) {
+      st.movimenti.add({
+        ts: Date.now(), tipo: 'chiusura', tesseraId: t.id, tesseraLabel: cardLabel(t), importo: Math.abs(t.saldo),
+        delta: -t.saldo, saldoPrima: t.saldo, saldoDopo: 0, ruolo: 'admin',
+        note: t.saldo > 0 ? 'Tessera eliminata con credito residuo' : 'Tessera eliminata con debito non saldato',
+      });
+    }
+  });
   state.tessere = state.tessere.filter((x) => x.id !== id);
 }
 
@@ -267,16 +269,23 @@ export async function registraConsumo(tesseraId, carrello) {
 }
 
 export const STORNABILI = ['consumo', 'ricarica', 'rimborso', 'carico', 'inventario'];
-export const UNDO_SECONDS = 15;
+
+export const operEditHours = () => Number(state.settings.operEditHours ?? DEFAULTS.operEditHours) || 0;
+
+/** L'amministratore modifica tutto; l'operatore solo i consumi recenti non ancora annullati. */
+export function puoModificare(m) {
+  if (!m || m.stornato || !STORNABILI.includes(m.tipo)) return false;
+  if (isAdmin()) return true;
+  return state.role === 'operatore' && m.tipo === 'consumo' && Date.now() - m.ts <= operEditHours() * 3600000;
+}
 
 /** Annulla un movimento ripristinando saldo e/o magazzino. */
 export async function storna(movId, note = '') {
   if (!state.role) fail('Accesso non effettuato');
   const m = await db.get('movimenti', movId);
   if (!m) fail('Movimento non trovato');
-  const recenteMio = m.tipo === 'consumo' && Date.now() - m.ts < (UNDO_SECONDS + 5) * 1000;
-  if (!isAdmin() && !recenteMio) fail('Operazione riservata all\'amministratore');
-  if (m.stornato) fail('Movimento già stornato');
+  if (m.stornato) fail('Movimento già annullato');
+  if (!puoModificare(m)) fail(`L'operatore può annullare solo i consumi delle ultime ${operEditHours()} ore`);
   if (!STORNABILI.includes(m.tipo)) fail('Questo movimento non può essere stornato');
 
   const now = Date.now();
@@ -326,6 +335,81 @@ export async function storna(movId, note = '') {
   for (const t of updT) replaceIn(state.tessere, t);
   for (const p of updP) replaceIn(state.prodotti, p);
   return storno;
+}
+
+/** Prezzo e quantità di partenza quando si modifica un consumo già registrato. */
+export function baseModifica(m) {
+  const qta = new Map();
+  const prezzo = new Map();
+  for (const r of m.righe) {
+    qta.set(r.prodottoId, (qta.get(r.prodottoId) || 0) + r.qta);
+    prezzo.set(r.prodottoId, r.prezzo);
+  }
+  return { qta, prezzo };
+}
+
+/**
+ * Modifica un consumo: annulla l'originale e registra quello corretto in un'unica operazione.
+ * I prodotti già presenti mantengono il prezzo pagato all'epoca.
+ */
+export async function modificaConsumo(movId, carrello) {
+  if (!state.role) fail('Accesso non effettuato');
+  const m = await db.get('movimenti', movId);
+  if (!m || m.tipo !== 'consumo') fail('Consumo non trovato');
+  if (m.stornato) fail('Questo consumo è già stato annullato o modificato');
+  if (!puoModificare(m)) fail(`L'operatore può modificare solo i consumi delle ultime ${operEditHours()} ore`);
+  const t = findTessera(m.tesseraId);
+  if (!t) fail('La tessera di questo consumo è stata eliminata');
+
+  const base = baseModifica(m);
+  const stock = new Map(); // prodottoId -> prodotto aggiornato
+  for (const [pid, q] of base.qta) {
+    const p = findProdotto(pid);
+    if (p && p.gestioneStock) stock.set(pid, { ...p, stock: p.stock + q });
+  }
+  const righe = [];
+  for (const [pid, qta] of carrello) {
+    if (!qta) continue;
+    if (!Number.isInteger(qta) || qta < 0) fail('Quantità non valida');
+    const p = findProdotto(pid);
+    if (!p || (!p.attivo && !base.qta.has(pid))) fail('Prodotto non disponibile');
+    if (p.gestioneStock) {
+      const cur = stock.get(pid) || { ...p };
+      if (cur.stock < qta) fail(`${p.nome}: disponibili solo ${cur.stock}`);
+      stock.set(pid, { ...cur, stock: cur.stock - qta });
+    }
+    righe.push({ prodottoId: p.id, nome: p.nome, prezzo: base.prezzo.has(pid) ? base.prezzo.get(pid) : p.prezzo, qta });
+  }
+  if (!righe.length) fail('Nessun prodotto: per eliminare l\'ordine usare “Annulla ordine”');
+  const totale = righe.reduce((s, r) => s + r.prezzo * r.qta, 0);
+  const saldoBase = t.saldo + m.importo;
+  if (saldoBase - totale < -fido()) fail('Credito insufficiente: ricaricare la tessera');
+
+  const now = Date.now();
+  const label = cardLabel(t);
+  const orig = { ...m, stornato: true, stornoTs: now, modificato: true };
+  const storno = {
+    ts: now, tipo: 'storno', rif: m.id, rifTipo: 'consumo', ruolo: state.role, note: 'Modifica ordine',
+    importo: m.importo, righe: m.righe, tesseraId: t.id, tesseraLabel: label, delta: m.importo,
+    saldoPrima: t.saldo, saldoDopo: saldoBase,
+  };
+  const nuovo = {
+    ts: now, tipo: 'consumo', tesseraId: t.id, tesseraLabel: label, righe, importo: totale, delta: -totale,
+    saldoPrima: saldoBase, saldoDopo: saldoBase - totale, ruolo: state.role, sostituisce: m.id,
+  };
+  const nt = { ...t, saldo: saldoBase - totale };
+  const prodotti = [...stock.values()];
+  await db.tx(['tessere', 'prodotti', 'movimenti'], (st) => {
+    st.tessere.put(nt);
+    for (const p of prodotti) st.prodotti.put(p);
+    st.movimenti.put(orig);
+    st.movimenti.add(storno);
+    const r = st.movimenti.add(nuovo);
+    r.onsuccess = () => { nuovo.id = r.result; };
+  });
+  replaceIn(state.tessere, nt);
+  for (const p of prodotti) replaceIn(state.prodotti, p);
+  return nuovo;
 }
 
 /* ----------------------------- Prodotti ----------------------------- */

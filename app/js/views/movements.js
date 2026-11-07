@@ -1,5 +1,7 @@
-// Storico movimenti con filtri, storno e esportazione CSV (solo amministratore).
-import { state, storna, STORNABILI, sortTessere, cardLabel } from '../store.js';
+// Storico movimenti con filtri e annullamenti.
+// Operatore: vede i movimenti e può modificare/annullare i consumi recenti. Amministratore: tutto, più esportazione CSV.
+import { state, storna, puoModificare, operEditHours, isAdmin, sortTessere, cardLabel } from '../store.js';
+import { openOrder } from './order.js';
 import { movimentiRange } from '../db.js';
 import { h, icon, clear, confirmDialog, toast, showError, emptyState } from '../ui.js';
 import { fmtEuro, fmtNum, fmtDateTime, csvCell, downloadBlob, isoDate } from '../util.js';
@@ -12,17 +14,19 @@ const TIPI = {
   carico: { label: 'Carico', cls: 't-carico' },
   inventario: { label: 'Inventario', cls: 't-inventario' },
   storno: { label: 'Storno', cls: 't-storno' },
+  chiusura: { label: 'Chiusura tessera', cls: 't-storno' },
 };
 
 export function movTypeBadge(m) {
   const t = TIPI[m.tipo] || { label: m.tipo, cls: '' };
-  return h('span', { class: `type-badge ${t.cls}` }, t.label, m.stornato ? h('span', { class: 'stornato-tag' }, 'stornato') : null);
+  return h('span', { class: `type-badge ${t.cls}` }, t.label,
+    m.stornato ? h('span', { class: 'stornato-tag' }, m.modificato ? 'modificato' : 'annullato') : null);
 }
 
 export function describeMov(m) {
   const righe = (m.righe || []).map((r) => `${r.qta}× ${r.nome}`).join(', ');
   switch (m.tipo) {
-    case 'consumo': return righe;
+    case 'consumo': return m.sostituisce ? `${righe} (correzione di #${m.sostituisce})` : righe;
     case 'ricarica': case 'rimborso': return m.note || '';
     case 'carico': return `${m.prodottoNome}: +${m.qta} (${m.stockPrima} → ${m.stockDopo})${m.note ? ` · ${m.note}` : ''}`;
     case 'inventario': return `${m.prodottoNome}: ${m.qta > 0 ? '+' : ''}${m.qta} (${m.stockPrima} → ${m.stockDopo})${m.note ? ` · ${m.note}` : ''}`;
@@ -44,18 +48,20 @@ const FILTRI = [
 ];
 
 export function renderMovements(main) {
+  const admin = isAdmin();
   let range;
-  let tipo = 'tutti';
+  let tipo = admin ? 'tutti' : 'consumo';
   let tesseraId = '';
   let all = [];
   let limit = 200;
 
   const body = h('div', { class: 'table-wrap' });
   const totals = h('div', { class: 'toolbar-stats' });
-  const picker = periodPicker('7g', (r) => { range = r; load(); });
+  const picker = periodPicker(admin ? '7g' : 'oggi', (r) => { range = r; load(); });
   range = picker.current();
 
   const tipoSel = h('select', { onchange: (e) => { tipo = e.target.value; limit = 200; draw(); } }, FILTRI.map((f) => h('option', { value: f.value }, f.label)));
+  tipoSel.value = tipo;
   const cardSel = h('select', { onchange: (e) => { tesseraId = e.target.value; limit = 200; draw(); } },
     h('option', { value: '' }, 'Tutte le tessere'),
     sortTessere(state.tessere).map((t) => h('option', { value: String(t.id) }, cardLabel(t))));
@@ -64,7 +70,9 @@ export function renderMovements(main) {
     h('div', { class: 'view-head' },
       h('h1', null, icon('list', 26), 'Movimenti'),
       totals,
-      h('button', { class: 'btn ghost', onclick: () => exportCsv() }, icon('download', 18), 'Esporta CSV')),
+      admin ? h('button', { class: 'btn ghost', onclick: () => exportCsv() }, icon('download', 18), 'Esporta CSV') : null),
+    admin ? null : h('div', { class: 'info-banner' }, icon('edit', 20),
+      h('span', null, `Puoi modificare o annullare i consumi registrati nelle ultime ${operEditHours()} ore. Per tutto il resto serve l'amministratore.`)),
     h('div', { class: 'toolbar wrap' }, picker.el, tipoSel, cardSel),
     body));
 
@@ -109,32 +117,43 @@ export function renderMovements(main) {
         h('td', { class: `num nowrap ${m.delta < 0 ? 'bad' : m.delta > 0 ? 'ok' : ''}` }, m.delta ? fmtEuro(m.delta) : ''),
         h('td', { class: 'num nowrap' }, m.saldoDopo != null ? fmtEuro(m.saldoDopo) : ''),
         h('td', { class: 'muted small' }, m.ruolo === 'admin' ? 'Admin' : 'Operatore'),
-        h('td', null, STORNABILI.includes(m.tipo) && !m.stornato
-          ? h('button', { class: 'btn ghost sm', title: 'Storna', onclick: () => doStorno(m) }, icon('undo', 16), 'Storna') : null))))));
+        h('td', { class: 'actions' }, h('div', { class: 'row-actions' }, actions(m))))))));
     if (list.length > limit) {
       body.append(h('div', { class: 'more' }, h('button', { class: 'btn ghost', onclick: () => { limit += 300; draw(); } }, `Mostra altri (${list.length - limit})`)));
     }
   }
 
+  function actions(m) {
+    if (!puoModificare(m)) return null;
+    if (m.tipo === 'consumo') {
+      return [
+        h('button', { class: 'btn ghost sm', onclick: () => openOrder(m.tesseraId, () => load(), m) }, icon('edit', 16), 'Modifica'),
+        h('button', { class: 'btn ghost sm danger-text', onclick: () => doStorno(m) }, icon('undo', 16), 'Annulla'),
+      ];
+    }
+    return h('button', { class: 'btn ghost sm', onclick: () => doStorno(m) }, icon('undo', 16), 'Storna');
+  }
+
   async function doStorno(m) {
-    const ok = await confirmDialog(`Stornare il movimento #${m.id}?`, {
-      ok: 'Storna', danger: true,
+    const consumo = m.tipo === 'consumo';
+    const ok = await confirmDialog(consumo ? `Annullare l'ordine #${m.id}?` : `Stornare il movimento #${m.id}?`, {
+      title: consumo ? 'Annulla ordine' : 'Storno', ok: consumo ? 'Annulla ordine' : 'Storna', cancel: 'Indietro', danger: true,
       detail: h('div', null,
-        h('div', null, movTypeBadge(m), ' ', m.tesseraLabel || m.prodottoNome || ''),
+        h('div', null, movTypeBadge(m), ' ', m.tesseraLabel || m.prodottoNome || '', m.importo ? ` · ${fmtEuro(m.importo)}` : ''),
         h('div', { class: 'small muted' }, describeMov(m)),
         h('p', { class: 'small' }, 'Saldo della tessera e magazzino verranno ripristinati.')),
     });
     if (!ok) return;
     try {
-      await storna(m.id, '');
-      toast('Movimento stornato', { type: 'success' });
+      await storna(m.id, consumo ? 'Ordine annullato' : '');
+      toast(consumo ? 'Ordine annullato' : 'Movimento stornato', { type: 'success' });
       load();
     } catch (err) { showError(err); }
   }
 
   function exportCsv() {
     const list = filtered().slice().reverse();
-    const rows = [['ID', 'Data', 'Ora', 'Tipo', 'Tessera', 'Dettaglio', 'Importo €', 'Saldo prima €', 'Saldo dopo €', 'Utente', 'Stornato']];
+    const rows = [['ID', 'Data', 'Ora', 'Tipo', 'Tessera', 'Dettaglio', 'Importo €', 'Saldo prima €', 'Saldo dopo €', 'Utente', 'Annullato']];
     for (const m of list) {
       const d = new Date(m.ts);
       rows.push([

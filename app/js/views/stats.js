@@ -1,5 +1,5 @@
 // Statistiche consumi, ricariche e verifica magazzino (solo amministratore).
-import { state, findTessera, cardLabel, sortProdotti } from '../store.js';
+import { state, findTessera, cardLabel, sortProdotti, isAdmin } from '../store.js';
 import { movimentiRange } from '../db.js';
 import { h, icon, clear, showError, emptyState } from '../ui.js';
 import { fmtEuro, fmtDate, startOfDay, addDays } from '../util.js';
@@ -246,7 +246,7 @@ function stockPanel(movs, reload) {
   return h('div', { class: 'panel wide' },
     h('div', { class: 'panel-head' },
       h('h3', null, 'Verifica magazzino e incassi'),
-      h('span', { class: 'muted small' }, 'Movimenti del periodo · rimanenza attuale. Confrontare la rimanenza con il conteggio fisico tramite “Verifica”.')),
+      h('span', { class: 'muted small' }, isAdmin() ? 'Movimenti del periodo · rimanenza attuale. Confrontare la rimanenza con il conteggio fisico tramite “Verifica”.' : 'Movimenti del periodo · rimanenza attuale.')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'table compact' },
       h('thead', null, h('tr', null,
         h('th', null, 'Prodotto'), h('th', { class: 'num' }, 'Caricati'), h('th', { class: 'num' }, 'Venduti'), h('th', { class: 'num' }, 'Rettifiche inv.'),
@@ -259,7 +259,7 @@ function stockPanel(movs, reload) {
         h('td', { class: 'num' }, fmtEuro(x.incasso)),
         h('td', { class: `num strong ${x.p.stock === 0 ? 'bad' : x.p.stock <= 5 ? 'warn' : ''}` }, x.p.stock),
         h('td', { class: 'num' }, fmtEuro(x.p.stock * x.p.prezzo)),
-        h('td', null, h('button', { class: 'btn ghost sm', onclick: () => openInventario(x.p.id, reload) }, icon('clipboard', 16), 'Verifica'))))))),
+        h('td', null, isAdmin() ? h('button', { class: 'btn ghost sm', onclick: () => openInventario(x.p.id, reload) }, icon('clipboard', 16), 'Verifica') : null)))))),
     h('p', { class: 'small muted' }, `Aggiornato al ${fmtDate(Date.now())}. L'incasso delle vendite è già compreso nei consumi pagati con le tessere.`));
 }
 

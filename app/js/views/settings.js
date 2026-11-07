@@ -46,12 +46,14 @@ export function renderSettings(main) {
   const fido = h('input', { type: 'text', inputmode: 'decimal', value: (s.fido / 100).toFixed(2).replace('.', ',') });
   const low = h('input', { type: 'text', inputmode: 'decimal', value: (s.lowBalance / 100).toFixed(2).replace('.', ',') });
   const timeout = h('input', { type: 'number', inputmode: 'numeric', min: 0, step: 1, value: String(s.adminTimeout) });
+  const editHours = h('input', { type: 'number', inputmode: 'numeric', min: 0, step: 1, value: String(s.operEditHours ?? 24) });
   let showBalance = s.showBalance !== false;
   const rulesCard = card('euro', 'Regole di cassa',
-    h('div', { class: 'grid-3' },
+    h('div', { class: 'grid-2' },
       field('Debito massimo per tessera €', fido, 'Oltre questo debito la tessera si blocca fino alla ricarica.'),
       field('Soglia “saldo basso” €', low, 'Sotto questa cifra il saldo è evidenziato in giallo.'),
-      field('Uscita automatica admin (minuti)', timeout, 'Dopo questo tempo di inattività torna in modalità operatore. 0 = mai.')),
+      field('Uscita automatica admin (minuti)', timeout, 'Dopo questo tempo di inattività torna in modalità operatore. 0 = mai.'),
+      field('Modifica ordini operatore (ore)', editHours, 'Per quante ore l\'operatore può modificare o annullare un consumo. 0 = mai.')),
     h('label', { class: 'switch-row' },
       h('div', null, h('b', null, 'Mostra il saldo nella home'), h('div', { class: 'small muted' }, 'Se disattivato, in home compaiono solo i nominativi.')),
       switchInput(showBalance, (v) => { showBalance = v; })),
@@ -61,10 +63,12 @@ export function renderSettings(main) {
         const f = parseEuro(fido.value);
         const l = parseEuro(low.value);
         const t = parseInt(timeout.value, 10);
+        const eh = parseInt(editHours.value, 10);
         if (Number.isNaN(f) || f < 0 || f > 10000) return toast('Debito massimo non valido', { type: 'error' });
         if (Number.isNaN(l) || l < 0) return toast('Soglia non valida', { type: 'error' });
         if (Number.isNaN(t) || t < 0) return toast('Minuti non validi', { type: 'error' });
-        await setSettings({ fido: f, lowBalance: l, adminTimeout: t, showBalance });
+        if (Number.isNaN(eh) || eh < 0 || eh > 720) return toast('Ore non valide (0–720)', { type: 'error' });
+        await setSettings({ fido: f, lowBalance: l, adminTimeout: t, operEditHours: eh, showBalance });
         toast(`Salvato · debito massimo ${fmtEuro(f)}`, { type: 'success' });
       },
     }, icon('check', 18), 'Salva'));

@@ -1,6 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "notes": [
-    "Prima versione del Registro Quadrato Ufficiali"
+    "Home: solo ordine alfabetico, senza colori per grado",
+    "Dopo CASSA si torna subito alla home senza attese",
+    "Operatore: nuove sezioni Movimenti (modifica e annulla ordini recenti) e Statistiche",
+    "Eliminazione tessera con conferma che evidenzia credito o debito"
   ]
 }
