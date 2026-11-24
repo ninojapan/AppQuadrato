@@ -1,0 +1,61 @@
+// App Android "Registro Quadrato Ufficiali": contiene l'app web (cartella assets/www) e la mostra
+// a schermo intero. Funziona senza internet; i dati restano sul tablet.
+plugins {
+    id 'com.android.application'
+}
+
+def versione = new groovy.json.JsonSlurper().parse(rootProject.file('../app/version.json')).version
+
+// La password della chiave di firma NON è nel codice: arriva dal secret di GitHub ANDROID_KEYSTORE_PASSWORD.
+def passwordFirma = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+
+android {
+    namespace 'it.quadratoufficiali.registro'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'it.quadratoufficiali.registro'
+        minSdk 24
+        targetSdk 34
+        // Numero crescente a ogni compilazione su GitHub: permette ad Android di aggiornare l'app.
+        versionCode((project.findProperty('versionCode') ?: '1') as int)
+        versionName versione
+    }
+
+    // Firma fissa: le nuove versioni si installano sopra la vecchia mantenendo i dati.
+    // Senza password (solo prove su rami di sviluppo) si usa la firma di prova di Android.
+    signingConfigs {
+        if (passwordFirma) {
+            release {
+                storeFile rootProject.file('keystore/quadrato.p12')
+                storeType 'pkcs12'
+                storePassword passwordFirma
+                keyAlias 'quadrato'
+                keyPassword passwordFirma
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig passwordFirma ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // L'app non va sul Play Store: i controlli di pubblicazione di Google Play non devono bloccare la compilazione.
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.core:core:1.13.1'
+}

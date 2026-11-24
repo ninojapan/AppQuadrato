@@ -1,10 +1,12 @@
-# Pubblica l'app su GitHub Pages (gratis) ad ogni push sul ramo main.
-# Ogni pubblicazione con modifiche all'app viene proposta ai tablet come aggiornamento all'avvio.
+# Prepara l'app web e l'app Android (APK).
+# - Su main: pubblica tutto su GitHub Pages (gratis). Ogni pubblicazione con modifiche viene proposta
+#   ai tablet come aggiornamento all'avvio.
+# - Sugli altri rami: compila soltanto, per verificare che tutto funzioni (APK scaricabile da Actions).
 name: Pubblica app
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   workflow_dispatch:
 
 permissions:
@@ -13,26 +15,73 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pubblica-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  prepara:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepara l'app web
+        run: node scripts/build.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Controlla la password di firma
+        if: github.ref == 'refs/heads/main'
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Manca il secret ANDROID_KEYSTORE_PASSWORD (Settings > Secrets and variables > Actions). Vedi README, sezione App Android."
+            exit 1
+          fi
+
+      - name: Compila l'app Android (APK)
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          rm -rf app/src/main/assets/www
+          mkdir -p app/src/main/assets/www
+          cp -r ../dist/. app/src/main/assets/www/
+          rm -f app/src/main/assets/www/.nojekyll
+          ./gradlew --no-daemon assembleRelease -PversionCode=${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk ../dist/registro-quadrato.apk
+          ls -la ../dist/registro-quadrato.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registro-quadrato-apk
+          path: dist/registro-quadrato.apk
+
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
   pubblica:
+    if: github.ref == 'refs/heads/main'
+    needs: prepara
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Prepara l'app
-        run: node scripts/build.mjs
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
       - name: Pubblica su GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -2,6 +2,7 @@
 import { setupInitial } from '../store.js';
 import { h, icon, field, openModal } from '../ui.js';
 import { brand } from '../app.js';
+import { installBanner } from './install.js';
 
 export function renderSetup(container, onDone) {
   const ship = h('input', { type: 'text', placeholder: 'Es. Nave Trieste (L 9890)', autocomplete: 'off' });
@@ -26,6 +27,7 @@ export function renderSetup(container, onDone) {
 
   container.append(h('div', { class: 'lock-screen' },
     h('div', { class: 'lock-glow' }),
+    installBanner('setup'),
     h('form', { class: 'lock-card setup-card', onsubmit: submit },
       brand('lg'),
       h('h2', { class: 'setup-title' }, 'Prima configurazione'),

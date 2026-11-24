@@ -1,5 +1,5 @@
 import { state, load, isConfigured, isAdmin } from './store.js';
-import { h, icon, clear, closeAllModals, toast, showError, clearToasts } from './ui.js';
+import { h, icon, clear, closeAllModals, closeTopModal, toast, showError, clearToasts } from './ui.js';
 import { initUpdates } from './update.js';
 import { renderLock } from './views/lock.js';
 import { renderSetup } from './views/setup.js';
@@ -157,4 +157,11 @@ async function boot() {
 }
 
 window.addEventListener('unhandledrejection', (e) => showError(e.reason));
+
+// Tasto Indietro dell'app Android: chiude la finestra aperta, poi torna alla Cassa.
+window.__onBack = () => {
+  if (closeTopModal()) return true;
+  if (state.role && current !== 'home') { navigate('home'); return true; }
+  return false;
+};
 boot();

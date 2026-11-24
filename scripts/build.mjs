@@ -48,6 +48,9 @@ sw = sw
   .replace("'__BUILD__'", JSON.stringify(build))
   .replace(/\/\*ASSETS\*\/[\s\S]*?\/\*END_ASSETS\*\//, JSON.stringify(precache, null, 2));
 await writeFile(join(out, 'sw.js'), sw);
+// version.json pubblicato con il codice build: l'app Android lo confronta per sapere se c'è un aggiornamento.
+const vj = JSON.parse(await readFile(join(src, 'version.json'), 'utf8'));
+await writeFile(join(out, 'version.json'), `${JSON.stringify({ ...vj, build }, null, 2)}\n`);
 await writeFile(join(out, 'js/build-info.js'), `export const VERSION = ${JSON.stringify(version)};\nexport const BUILD = ${JSON.stringify(build)};\n`);
 await writeFile(join(out, '.nojekyll'), '');
 

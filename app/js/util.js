@@ -39,7 +39,9 @@ export function csvCell(v) {
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function downloadBlob(blob, filename) {
+export async function downloadBlob(blob, filename) {
+  const { isNativeApp, nativeSave } = await import('./native.js');
+  if (isNativeApp()) { await nativeSave(blob, filename); return; }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -52,6 +54,8 @@ export function downloadBlob(blob, filename) {
 
 /** Prova a condividere un file (iPad/Android: Mail, File, AirDrop...). Restituisce true se riuscito. */
 export async function shareFile(blob, filename) {
+  const { isNativeApp, nativeShare } = await import('./native.js');
+  if (isNativeApp()) { await nativeShare(blob, filename); return true; }
   try {
     const file = new File([blob], filename, { type: blob.type });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
