@@ -1,9 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "notes": [
-    "Home: solo ordine alfabetico, senza colori per grado",
-    "Dopo CASSA si torna subito alla home senza attese",
-    "Operatore: nuove sezioni Movimenti (modifica e annulla ordini recenti) e Statistiche",
-    "Eliminazione tessera con conferma che evidenzia credito o debito"
+    "Nuova app Android (APK) installabile su qualsiasi tablet Android, anche senza Chrome",
+    "Nell'app Android: salvataggio e condivisione dei backup, foto dalla fotocamera, tasto Indietro"
   ]
 }

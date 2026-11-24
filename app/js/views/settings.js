@@ -8,6 +8,7 @@ import { refresh, logoSrc, lockApp } from '../app.js';
 import { versionLabel, checkForUpdatesNow } from '../update.js';
 import { showRecoveryCode } from './setup.js';
 import { isStandalone, installApp } from './install.js';
+import { isNativeApp } from '../native.js';
 
 export function renderSettings(main) {
   const s = state.settings;
@@ -132,7 +133,7 @@ export function renderSettings(main) {
     h('p', { class: 'muted' }, 'I dati sono salvati solo su questo tablet. Fare un backup regolarmente e conservarlo altrove (PC, chiavetta, mail). Il backup serve anche per spostare i dati su un altro tablet.'),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', onclick: () => makeBackup(false) }, icon('download', 18), 'Scarica backup'),
-      navigator.share ? h('button', { class: 'btn ghost', onclick: () => makeBackup(true) }, icon('share', 18), 'Condividi backup') : null,
+      navigator.share || isNativeApp() ? h('button', { class: 'btn ghost', onclick: () => makeBackup(true) }, icon('share', 18), 'Condividi backup') : null,
       h('button', { class: 'btn ghost', onclick: () => restoreIn.click() }, icon('upload', 18), 'Ripristina da file'),
       restoreIn),
     lastBk);
@@ -141,7 +142,7 @@ export function renderSettings(main) {
   const appCard = card('refresh', 'Applicazione',
     h('div', { class: 'info-list' },
       h('div', null, h('span', null, 'Versione'), h('b', null, versionLabel())),
-      h('div', null, h('span', null, 'Modalità'), h('b', null, isStandalone() ? 'App installata' : 'Browser')),
+      h('div', null, h('span', null, 'Modalità'), h('b', null, isNativeApp() ? 'App Android (APK)' : isStandalone() ? 'App installata' : 'Browser')),
       h('div', null, h('span', null, 'Dati'), h('b', null, `${state.tessere.length} tessere · ${state.prodotti.length} prodotti`))),
     h('div', { class: 'row' },
       h('button', { class: 'btn ghost', onclick: () => checkForUpdatesNow() }, icon('refresh', 18), 'Verifica aggiornamenti'),

@@ -24,6 +24,12 @@ const outputs = [
   ['app/icons/maskable-512.png', 512, 0.2, BG],
   ['app/icons/apple-touch-icon.png', 180, 0.1, BG],
 ];
+// Icone dell'app Android (APK): icona classica e primo piano dell'icona adattiva (sfondo scuro nel file XML).
+const DENSITA = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
+for (const [d, k] of Object.entries(DENSITA)) {
+  outputs.push([`android/app/src/main/res/mipmap-${d}/ic_launcher.png`, Math.round(48 * k), 0.03, 'transparent']);
+  outputs.push([`android/app/src/main/res/mipmap-${d}/ic_launcher_foreground.png`, Math.round(108 * k), 0.19, 'transparent']);
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 1 });

@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+local.properties
+# copiata da dist/ al momento della compilazione
+app/src/main/assets/www/

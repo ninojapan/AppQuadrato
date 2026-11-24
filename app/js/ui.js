@@ -126,6 +126,14 @@ export function openModal(opts) {
   return api;
 }
 
+/** Chiude la finestra in primo piano (tasto Indietro di Android). Restituisce true se ce n'era una. */
+export function closeTopModal() {
+  const top = openModals[openModals.length - 1];
+  if (!top) return false;
+  if (top.dismissable) top.close();
+  return true;
+}
+
 export function closeAllModals() {
   for (const m of [...openModals]) m.close();
 }

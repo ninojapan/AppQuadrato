@@ -319,6 +319,14 @@ input.upper { text-transform: uppercase; }
 .recovery-code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.7rem; font-weight: 800; letter-spacing: 0.12em; text-align: center; padding: 16px; border-radius: 14px; background: var(--bg-2); border: 1px dashed var(--amber); color: var(--amber); -webkit-user-select: all; user-select: all; }
 .install-banner { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-radius: 16px; background: rgba(18, 26, 48, 0.8); border: 1px solid var(--line-2); color: var(--text-2); font-size: 0.92rem; max-width: 440px; }
 .install-banner .ic { color: var(--cyan); }
+.install-option { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); margin-bottom: 12px; }
+.install-option.recommended { border-color: rgba(34, 211, 238, 0.45); }
+.install-option p, .install-option ol { margin: 0; }
+.install-option-head { display: flex; align-items: center; gap: 8px; }
+.install-option-head .ic { color: var(--cyan); }
+.install-option-head .tag { margin-left: auto; }
+.ok-tag { background: rgba(52, 211, 153, 0.16); color: var(--green); }
+a.btn { text-decoration: none; }
 
 /* ------------------------------ ordine (consumo) ------------------------------ */
 .order-modal .modal-body { padding: 16px; }
