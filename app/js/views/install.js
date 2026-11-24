@@ -72,10 +72,13 @@ export function showInstructions() {
   });
 }
 
-export function installBanner() {
+export function installBanner(where) {
   if (isStandalone()) return null;
-  return h('div', { class: 'install-banner' },
+  const msg = where === 'setup'
+    ? 'Installa prima l\'app sul tablet e configurala da lì: i dati restano dove vengono inseriti.'
+    : isAndroid() ? 'Installa l\'app sul tablet Android' : 'Per usarla offline installa l\'app sul tablet';
+  return h('div', { class: `install-banner ${where === 'setup' ? 'setup' : ''}` },
     icon('install', 22),
-    h('span', null, isAndroid() ? 'Installa l\'app sul tablet Android' : 'Per usarla offline installa l\'app sul tablet'),
+    h('span', null, msg),
     h('button', { class: 'btn sm primary', onclick: () => installApp() }, 'Installa'));
 }

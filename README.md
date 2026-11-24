@@ -6,7 +6,7 @@ App per tablet (Android e iPad) che fa da registro di cassa del bar del Quadrato
 - **Gratis**: nessun abbonamento, nessuno store, nessun account sviluppatore.
 - **Aggiornamenti**: a ogni avvio, se c'è connessione, l'app controlla se esiste una nuova versione e chiede se installarla.
 
-Tecnicamente è una *Progressive Web App* (PWA): si installa dal browser e poi si apre dall'icona come una normale app.
+Su Android si installa come **app vera (file APK)**, che funziona su qualsiasi tablet, anche senza Chrome. Su iPad, e in alternativa su Android, si installa dal browser come *Progressive Web App* (PWA).
 
 ---
 
@@ -15,10 +15,18 @@ Tecnicamente è una *Progressive Web App* (PWA): si installa dal browser e poi s
 Indirizzo dell'app (dopo la pubblicazione, vedi § 7):
 **https://ninojapan.github.io/AppQuadrato/**
 
-**Android** (Chrome)
-1. Aprire l'indirizzo con **Chrome**.
-2. Menu **⋮** → **Installa app** (o "Aggiungi a schermata Home").
-3. Aprire l'app dall'icona con lo stemma di Nave Trieste.
+**Android: app APK (consigliato, funziona su qualsiasi tablet)**
+1. Aprire con un browser qualsiasi **https://ninojapan.github.io/AppQuadrato/registro-quadrato.apk**. In alternativa, aprire il sito e premere **Installa → Scarica APK**.
+2. A download finito, aprire il file dalla notifica o dalla cartella **Download**.
+3. Se Android lo chiede, consentire **"Installa app sconosciute"** per il browser, poi tornare indietro.
+4. Premere **Installa** e aprire **Quadrato Ufficiali** dall'icona con lo stemma di Nave Trieste.
+
+**Android: dal browser (alternativa)**
+- Chrome: menu **⋮** → **Installa app** (o "Aggiungi a schermata Home").
+- Firefox: menu **⋮** → **Installa**.
+- Samsung Internet: menu **☰** → **Aggiungi pagina a** → **Schermata Home**.
+
+I dati restano dove vengono inseriti: l'app APK e il sito aperto nel browser hanno archivi separati. Per spostare i dati usare **Backup** e **Ripristina** (§ 5).
 
 **iPad** (Safari)
 1. Aprire l'indirizzo con **Safari**.
@@ -87,6 +95,8 @@ All'avvio, se il tablet è connesso, l'app controlla se è stata pubblicata una 
 
 > *È disponibile una nuova versione dell'app. Vuoi installarla adesso?* **[Più tardi] [Installa]**
 
+Nell'app Android (APK), con **Scarica e installa** il browser scarica il nuovo APK: aprirlo e premere **Aggiorna**.
+
 L'aggiornamento non tocca i dati (tessere, prodotti, movimenti). Senza connessione l'app parte normalmente con la versione già installata. Da **Impostazioni → Verifica aggiornamenti** il controllo si può fare anche a mano.
 
 ## 7. Pubblicazione (una sola volta, gratis)
@@ -99,16 +109,25 @@ L'app viene pubblicata su **GitHub Pages**. Il workflow `.github/workflows/pubbl
 
 Il codice pubblicato non contiene dati né password: questi restano solo sui tablet.
 
+### App Android: password di firma (una sola volta)
+L'APK è firmato con una chiave fissa (`android/keystore/quadrato.p12`): così ogni nuova versione si installa sopra la precedente mantenendo i dati. La chiave è cifrata; la sua password **non è nel codice**, sta solo nei secret di GitHub:
+
+1. **Settings → Secrets and variables → Actions → New repository secret**.
+2. Name: `ANDROID_KEYSTORE_PASSWORD`. Secret: la password della chiave (consegnata alla creazione, da conservare in un luogo sicuro).
+3. **Add secret**.
+
+Senza questo secret la pubblicazione su `main` si ferma con un messaggio di errore. Sugli altri rami l'APK viene compilato solo per prova, con una firma temporanea, e non va installato sui tablet. Se la password andasse persa: nuova chiave e nuova password, e sui tablet l'app va disinstallata e reinstallata, dopo un backup.
+
 ### Pubblicare una nuova versione
 1. Modificare i file in `app/`.
 2. In `app/version.json` aumentare `version` (es. `1.0.1`) e scrivere le novità in `notes`: compaiono nella richiesta di aggiornamento.
-3. Fare il push su `main`. Al successivo avvio con connessione, i tablet propongono l'aggiornamento.
+3. Fare il push su `main`: vengono pubblicati sia il sito sia il nuovo APK. Al successivo avvio con connessione, i tablet propongono l'aggiornamento.
 
 Il numero di *build* si calcola da solo dal contenuto dei file: se i file non cambiano, ai tablet non viene proposto nessun aggiornamento.
 
 ## 8. Logo
 
-Il logo di Nave Trieste è in `assets-src/logo-nave-trieste.webp`. Da questo file vengono generati il logo dell'app (`app/assets/logo.png`) e le icone (`app/icons/`). Per rigenerarli, ad esempio con un logo diverso:
+Il logo di Nave Trieste è in `assets-src/logo-nave-trieste.webp`. Da questo file vengono generati il logo dell'app (`app/assets/logo.png`), le icone web (`app/icons/`) e quelle dell'app Android (`android/app/src/main/res/mipmap-*`). Per rigenerarli, ad esempio con un logo diverso:
 
 ```bash
 npx playwright install chromium
@@ -144,6 +163,7 @@ app/                  codice dell'app (HTML, CSS, JavaScript senza framework)
 assets-src/           logo originale
 scripts/build.mjs     prepara la cartella dist/ da pubblicare
 scripts/make-icons.mjs genera logo e icone
+android/              app Android (APK): mostra l'app di app/ a schermo intero, senza internet
 ```
 
 Le password sono salvate solo come impronta SHA-256 con sale. Gli importi sono gestiti in centesimi, per evitare errori di arrotondamento.
